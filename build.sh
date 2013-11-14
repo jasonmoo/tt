@@ -13,7 +13,7 @@ date
 echo "tt build script starting up"
 echo
 
-if [[ -z "$RECOMPILE" ]]; then
+if [[ -n "$RECOMPILE" ]]; then
 	(
 		echo "Ensuring $GOROOT"   && mkdir -p $GOROOT && cd $GOROOT &&
 		echo "Downloading source" && ([ -d .hg ] || hg clone https://code.google.com/p/go .) && hg pull && hg up default &&
