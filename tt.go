@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-        "github.com/jasonmoo/bloom"
+	"github.com/jasonmoo/bloom"
 	"github.com/jasonmoo/bloom/scalable"
 	"log"
 	"os"
@@ -43,13 +43,8 @@ func main() {
 			for scanner.Scan() {
 				token := scanner.Bytes()
 				if !filter.Check(token) {
-					if *unique {
-						if ufilter.Check(token) {
-							continue
-						}
-						ufilter.Add(token)
-					}
-					fmt.Println(token)
+					os.Stdout.Write(token)
+					os.Stdout.Write([]byte{'\n'})
 				}
 			}
 			file.Close()
@@ -95,7 +90,8 @@ func main() {
 						}
 						ufilter.Add(token)
 					}
-					fmt.Println(token)
+					os.Stdout.Write(token)
+					os.Stdout.Write([]byte{'\n'})
 				}
 			}
 			if err := scanner.Err(); err != nil {
@@ -110,7 +106,8 @@ func main() {
 						}
 						ufilter.Add(token)
 					}
-					fmt.Println(token)
+					os.Stdout.Write(token)
+					os.Stdout.Write([]byte{'\n'})
 				}
 			}
 			if err := scanner.Err(); err != nil {
@@ -119,7 +116,7 @@ func main() {
 		}
 	}
 
-	// init with 1mm per file, will grow to needed size
+	// multi file handling below
 	filters, filter_chan := make([]bloom.Bloom, len(file_paths)), make(chan bloom.Bloom, len(file_paths))
 
 	// may require throttling due to disk thrashing
@@ -141,7 +138,7 @@ func main() {
 
 	// fill the filters
 	for i := range filters {
-		filters[i] = <- filter_chan
+		filters[i] = <-filter_chan
 	}
 
 	// do the work
@@ -154,7 +151,7 @@ func main() {
 			}
 			scanner := bufio.NewScanner(file)
 
-			NEXT_TOKEN:
+		NEXT_TOKEN:
 			for scanner.Scan() {
 				token := scanner.Bytes()
 				for _, filter := range filters {
@@ -168,7 +165,8 @@ func main() {
 					}
 					ufilter.Add(token)
 				}
-				fmt.Println(token)
+				os.Stdout.Write(token)
+				os.Stdout.Write([]byte{'\n'})
 			}
 			file.Close()
 		}
@@ -190,14 +188,15 @@ func main() {
 							}
 							ufilter.Add(token)
 						}
-						fmt.Println(token)
+						os.Stdout.Write(token)
+						os.Stdout.Write([]byte{'\n'})
 					}
 				}
 			}
 			file.Close()
 		}
 	default:
-		fmt.Println("Usage: tt -[i,d,u] file1 file2[ file3..]")
+		fmt.Println("Usage: tt -[i,d,u] [-unique] file1 file2[ file3..]")
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
