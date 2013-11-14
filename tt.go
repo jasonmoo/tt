@@ -31,9 +31,6 @@ func main() {
 	file_paths := flag.Args()
 
 	if *union {
-		// init to 1mm per file, will grow to whatever
-		filter := scalable.New(uint(len(file_paths) << 20))
-
 		for _, file_path := range file_paths {
 			file, err := os.Open(file_path)
 			if err != nil {
@@ -42,9 +39,10 @@ func main() {
 			scanner := bufio.NewScanner(file)
 			for scanner.Scan() {
 				token := scanner.Bytes()
-				if !filter.Check(token) {
+				if !ufilter.Check(token) {
 					os.Stdout.Write(token)
 					os.Stdout.Write([]byte{'\n'})
+					ufilter.Add(token)
 				}
 			}
 			file.Close()

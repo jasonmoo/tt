@@ -33,11 +33,11 @@ tt uses scalable bloom filters to quickly test the existence of a member in a se
 	  549474 total
 
 	./tt -u /usr/share/dict/* | wc -l
-	  549474
+	  312123
 
-	real    0m1.836s
-	user    0m0.625s
-	sys     0m1.767s
+	real    0m1.116s
+	user    0m0.592s
+	sys     0m1.097s
 
 
 [MIT License](https://github.vimeows.com/jason/tt/raw/master/LICENSE)
