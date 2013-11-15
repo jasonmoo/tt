@@ -1,7 +1,7 @@
 ##tt
 *a token tester*
 
-calculate the difference, intersection, or union on large newline delimeted files
+calculate the difference, intersection, or union on large newline delimited files
 
 tt uses scalable bloom filters to quickly test the existence of a member in a set.
 
