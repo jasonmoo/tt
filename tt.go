@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"runtime"
+	"time"
 )
 
 var (
@@ -16,24 +17,28 @@ var (
 	diff         = flag.Bool("d", false, "calculate the difference")
 	union        = flag.Bool("u", false, "calculate the union")
 
+	hint   = flag.Uint("hint", 4096, "min number of tokens per file")
 	unique = flag.Bool("unique", false, "output the unique set of the values")
 
 	// global unique filter
-	ufilter = scalable.New(1 << 20)
+	ufilter = scalable.New(*hint)
 
-	// buffered io 
+	// buffered io
 	stdout = bufio.NewWriterSize(os.Stdout, 4096)
+
+	// total tokens in output
+	total uint64
 )
 
 func main() {
-	
-	defer stdout.Flush()	
+
+	defer stdout.Flush()
 
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	flag.Parse()
 
-	file_paths := flag.Args()
+	file_paths, start := flag.Args(), time.Now()
 
 	if *union {
 		for _, file_path := range file_paths {
@@ -47,6 +52,7 @@ func main() {
 				if !ufilter.Check(token) {
 					stdout.Write(token)
 					stdout.WriteByte('\n')
+					total++
 					ufilter.Add(token)
 				}
 			}
@@ -59,7 +65,7 @@ func main() {
 	// optimize muthafuckas
 	if *unique && len(file_paths) == 2 {
 
-		filter := scalable.New(1 << 20)
+		filter := scalable.New(*hint)
 
 		filea, err := os.Open(file_paths[0])
 		if err != nil {
@@ -88,9 +94,10 @@ func main() {
 			for scanner.Scan() {
 				token := scanner.Bytes()
 				if filter.Check(token) && !ufilter.Check(token) {
-					ufilter.Add(token)
 					stdout.Write(token)
 					stdout.WriteByte('\n')
+					total++
+					ufilter.Add(token)
 				}
 			}
 			if err := scanner.Err(); err != nil {
@@ -101,9 +108,10 @@ func main() {
 			for scanner.Scan() {
 				token := scanner.Bytes()
 				if !filter.Check(token) && !ufilter.Check(token) {
-					ufilter.Add(token)
 					stdout.Write(token)
 					stdout.WriteByte('\n')
+					total++
+					ufilter.Add(token)
 				}
 			}
 			if err := scanner.Err(); err != nil {
@@ -114,21 +122,22 @@ func main() {
 	}
 
 	// multi file handling below
-	filters, filter_chan := make([]bloom.Bloom, len(file_paths)), make(chan bloom.Bloom, len(file_paths))
+	filters := make([]bloom.Bloom, len(file_paths))
+	filter_chan := make(chan bloom.Bloom, len(file_paths))
 
 	// may require throttling due to disk thrashing
 	for _, file_path := range file_paths {
 		go func() {
-			filter := scalable.New(1 << 20)
+			filter := scalable.New(*hint)
 			file, err := os.Open(file_path)
 			if err != nil {
 				log.Fatal(err)
 			}
-			defer file.Close()
 			scanner := bufio.NewScanner(file)
 			for scanner.Scan() {
 				filter.Add(scanner.Bytes())
 			}
+			file.Close()
 			filter_chan <- filter
 		}()
 	}
@@ -164,6 +173,7 @@ func main() {
 				}
 				stdout.Write(token)
 				stdout.WriteByte('\n')
+				total++
 			}
 			file.Close()
 		}
@@ -187,6 +197,7 @@ func main() {
 						}
 						stdout.Write(token)
 						stdout.WriteByte('\n')
+						total++
 					}
 				}
 			}
@@ -197,5 +208,9 @@ func main() {
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
+
+	fmt.Fprintln(os.Stderr, "** Token Report **")
+	fmt.Fprintln(os.Stderr, "Tokens output: ", total)
+	fmt.Fprintln(os.Stderr, "Total time: ", time.Since(start))
 
 }
