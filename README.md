@@ -5,9 +5,9 @@ calculate the difference, intersection, or union on large newline delimited file
 
 tt uses scalable bloom filters to quickly test the existence of a member in a set.
 
-[Mac](https://github.vimeows.com/jason/tt/raw/master/builds/tt-darwin-amd64.gz)
-[Linux](https://github.vimeows.com/jason/tt/raw/master/builds/tt-linux-amd64.gz)
-[Windows](https://github.vimeows.com/jason/tt/raw/master/builds/tt-windows-amd64.gz)
+[Mac](https://github.com/jason/tt/raw/master/builds/tt-darwin-amd64.gz)
+[Linux](https://github.com/jason/tt/raw/master/builds/tt-linux-amd64.gz)
+[Windows](https://github.com/jason/tt/raw/master/builds/tt-windows-amd64.gz)
 
 ##Usage:
 
