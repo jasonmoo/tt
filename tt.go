@@ -20,9 +20,14 @@ var (
 
 	// global unique filter
 	ufilter = scalable.New(1 << 20)
+
+	// buffered io 
+	stdout = bufio.NewWriterSize(os.Stdout, 4096)
 )
 
 func main() {
+	
+	defer stdout.Flush()	
 
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
@@ -40,8 +45,8 @@ func main() {
 			for scanner.Scan() {
 				token := scanner.Bytes()
 				if !ufilter.Check(token) {
-					os.Stdout.Write(token)
-					os.Stdout.Write([]byte{'\n'})
+					stdout.Write(token)
+					stdout.WriteByte('\n')
 					ufilter.Add(token)
 				}
 			}
@@ -52,7 +57,7 @@ func main() {
 	}
 
 	// optimize muthafuckas
-	if len(file_paths) == 2 {
+	if *unique && len(file_paths) == 2 {
 
 		filter := scalable.New(1 << 20)
 
@@ -81,36 +86,30 @@ func main() {
 		switch {
 		case *intersection:
 			for scanner.Scan() {
-				if token := scanner.Bytes(); filter.Check(token) {
-					if *unique {
-						if ufilter.Check(token) {
-							continue
-						}
-						ufilter.Add(token)
-					}
-					os.Stdout.Write(token)
-					os.Stdout.Write([]byte{'\n'})
+				token := scanner.Bytes()
+				if filter.Check(token) && !ufilter.Check(token) {
+					ufilter.Add(token)
+					stdout.Write(token)
+					stdout.WriteByte('\n')
 				}
 			}
 			if err := scanner.Err(); err != nil {
 				log.Fatal(err)
 			}
+			return
 		case *diff:
 			for scanner.Scan() {
-				if token := scanner.Bytes(); !filter.Check(token) {
-					if *unique {
-						if ufilter.Check(token) {
-							continue
-						}
-						ufilter.Add(token)
-					}
-					os.Stdout.Write(token)
-					os.Stdout.Write([]byte{'\n'})
+				token := scanner.Bytes()
+				if !filter.Check(token) && !ufilter.Check(token) {
+					ufilter.Add(token)
+					stdout.Write(token)
+					stdout.WriteByte('\n')
 				}
 			}
 			if err := scanner.Err(); err != nil {
 				log.Fatal(err)
 			}
+			return
 		}
 	}
 
@@ -163,8 +162,8 @@ func main() {
 					}
 					ufilter.Add(token)
 				}
-				os.Stdout.Write(token)
-				os.Stdout.Write([]byte{'\n'})
+				stdout.Write(token)
+				stdout.WriteByte('\n')
 			}
 			file.Close()
 		}
@@ -186,8 +185,8 @@ func main() {
 							}
 							ufilter.Add(token)
 						}
-						os.Stdout.Write(token)
-						os.Stdout.Write([]byte{'\n'})
+						stdout.Write(token)
+						stdout.WriteByte('\n')
 					}
 				}
 			}

@@ -32,6 +32,10 @@ if [[ $? -ne 0 ]]; then
 	echo "tt build failed.  Exiting..." && exit 1
 fi
 
+if [[ "$GOOS" == "windows" ]]; then
+	mv bin/tt-$GOOS-$GOARCH bin/tt-$GOOS-$GOARCH.exe
+fi
+
 file bin/*
 
 echo "Done!"
