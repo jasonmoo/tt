@@ -13,15 +13,12 @@ tt uses scalable bloom filters to quickly test the existence of a member in a se
 
 	./tt
 
-	Usage: tt -[i,d,u] [-unique] file1 file2[ file3..]
+	Usage: tt -[i,d,u] file1 file2[ file3..]
 	  -d=false: calculate the difference
 	  -i=false: calculate the intersection
 	  -u=false: calculate the union
-	  -unique=false: output the unique set of the values
 
-
-	# this will output the unique set of words from all
-	# bundled dictionaries on a mac
+## Example
 
 	wc -l /usr/share/dict/*
 	      39 /usr/share/dict/README
@@ -32,12 +29,28 @@ tt uses scalable bloom filters to quickly test the existence of a member in a se
 	  235886 /usr/share/dict/words
 	  549474 total
 
-	./tt -u /usr/share/dict/* | wc -l
-	  312123
+	# outputs for different actions on /usr/share/dict files
 
-	real    0m1.116s
-	user    0m0.592s
-	sys     0m1.097s
+	./tt -u /usr/share/dict/{web2*,words} > /dev/null
+	** Token Report **
+	Tokens output:  308732
+	Total time:  9.612525239s
+
+	./tt -d /usr/share/dict/{web2*,words} > /dev/null
+	** Token Report **
+	Tokens output:  618234
+	Total time:  18.742208443s
+
+	./tt -i /usr/share/dict/{web2*,words} > /dev/null
+	** Token Report **
+	Tokens output:  4869
+	Total time:  5.55820695s
+
+	./tt -i /usr/share/dict/* > /dev/null
+	** Token Report **
+	Tokens output:  0
+	Total time:  386.177523ms
+
 
 
 [MIT License](https://github.vimeows.com/jason/tt/raw/master/LICENSE)
