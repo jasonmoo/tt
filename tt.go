@@ -4,8 +4,12 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"github.com/jasonmoo/bloom"
-	"github.com/jasonmoo/bloom/scalable"
+	"github.com/reducedb/bloom"
+	"github.com/reducedb/bloom/scalable"
+
+	// "crypto/sha1"
+	// "github.com/spaolacci/murmur3"
+
 	"log"
 	"os"
 	"runtime"
@@ -21,6 +25,9 @@ var (
 
 	// buffered io
 	stdout = bufio.NewWriterSize(os.Stdout, 4096)
+
+	// unique filter
+	unique_set = NewScalableBloom(*hint)
 
 	// total tokens in output
 	total uint64
@@ -43,160 +50,119 @@ func main() {
 
 	file_paths := flag.Args()
 
+	// may omit entries due to false positives
+	// todo(jason): try crypto hash or use dual filters
 	if *union {
 
-		filter := scalable.New(*hint)
-
 		for _, file_path := range file_paths {
+
 			file, err := os.Open(file_path)
 			if err != nil {
 				log.Fatal(err)
 			}
+
 			scanner := bufio.NewScanner(file)
+
 			for scanner.Scan() {
 				token := scanner.Bytes()
-				if !filter.Check(token) {
+				if !unique_set.Check(token) {
 					stdout.Write(token)
 					stdout.WriteByte('\n')
 					total++
-					filter.Add(token)
+					unique_set.Add(token)
 				}
 			}
+
 			file.Close()
+
 		}
 
 		return
 	}
 
-	// optimize muthafuckas
-	if len(file_paths) == 2 {
-
-		filter := scalable.New(*hint)
-
-		filea, err := os.Open(file_paths[0])
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer filea.Close()
-
-		scanner := bufio.NewScanner(filea)
-		for scanner.Scan() {
-			filter.Add(scanner.Bytes())
-		}
-		if err := scanner.Err(); err != nil {
-			log.Fatal(err)
-		}
-
-		fileb, err := os.Open(file_paths[1])
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer fileb.Close()
-
-		scanner = bufio.NewScanner(fileb)
-
-		switch {
-		case *intersection:
-			for scanner.Scan() {
-				token := scanner.Bytes()
-				if !filter.Check(token) {
-					stdout.Write(token)
-					stdout.WriteByte('\n')
-					total++
-					filter.Add(token)
-				}
-			}
-			if err := scanner.Err(); err != nil {
-				log.Fatal(err)
-			}
-			return
-		case *diff:
-			for scanner.Scan() {
-				token := scanner.Bytes()
-				if !filter.Check(token) {
-					stdout.Write(token)
-					stdout.WriteByte('\n')
-					total++
-					filter.Add(token)
-				}
-			}
-			if err := scanner.Err(); err != nil {
-				log.Fatal(err)
-			}
-			return
-		}
-	}
-
 	// multi file handling below
-	filters := make([]bloom.Bloom, len(file_paths))
-	filter_chan := make(chan bloom.Bloom, len(file_paths))
+	sets := make([]bloom.Bloom, len(file_paths))
 
 	// may require throttling due to disk thrashing
 	// initial scan to fill the bloom filters
-	for _, file_path := range file_paths {
-		go func(path string) {
-			filter := scalable.New(*hint)
-			file, err := os.Open(path)
-			if err != nil {
-				log.Fatal(err)
-			}
-			scanner := bufio.NewScanner(file)
-			for scanner.Scan() {
-				filter.Add(scanner.Bytes())
-			}
-			file.Close()
-			filter_chan <- filter
-		}(file_path)
-	}
+	for i, file_path := range file_paths {
 
-	// fill the filters
-	for i := range filters {
-		filters[i] = <-filter_chan
+		set := NewScalableBloom(*hint)
+
+		file, err := os.Open(file_path)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		scanner := bufio.NewScanner(file)
+
+		for scanner.Scan() {
+			set.Add(scanner.Bytes())
+		}
+
+		file.Close()
+
+		sets[i] = set
+
 	}
 
 	// do the work
 	switch {
+
+	// unique set of tokens that exist in all files
 	case *intersection:
 		for _, file_path := range file_paths {
+
 			file, err := os.Open(file_path)
 			if err != nil {
 				log.Fatal(err)
 			}
+
 			scanner := bufio.NewScanner(file)
 
 		NEXT_TOKEN:
 			for scanner.Scan() {
 				token := scanner.Bytes()
-				for _, filter := range filters {
-					if !filter.Check(token) {
+				for _, set := range sets {
+					if !set.Check(token) || unique_set.Check(token) {
 						goto NEXT_TOKEN
 					}
 				}
 				stdout.Write(token)
 				stdout.WriteByte('\n')
 				total++
+				unique_set.Add(token)
 			}
+
 			file.Close()
+
 		}
+
+	// unique set of tokens not in the intersection
 	case *diff:
 		for _, file_path := range file_paths {
+
 			file, err := os.Open(file_path)
 			if err != nil {
 				log.Fatal(err)
 			}
+
 			scanner := bufio.NewScanner(file)
 
 			for scanner.Scan() {
 				token := scanner.Bytes()
-				for _, filter := range filters {
-					if !filter.Check(token) {
+				for _, set := range sets {
+					if !set.Check(token) && !unique_set.Check(token) {
 						stdout.Write(token)
 						stdout.WriteByte('\n')
 						total++
+						unique_set.Add(token)
 					}
 				}
 			}
+
 			file.Close()
+
 		}
 	default:
 		fmt.Println("Usage: tt -[i,d,u] file1 file2[ file3..]")
@@ -204,4 +170,54 @@ func main() {
 		os.Exit(1)
 	}
 
+}
+
+type (
+	Bloomer struct {
+		bloom.Bloom
+		filters []bloom.Bloom
+	}
+)
+
+func NewScalableBloom(size uint) bloom.Bloom {
+
+	filters := make([]bloom.Bloom, 2)
+
+	for i, _ := range filters {
+		filter := scalable.New(size)
+		filter.Reset()
+		filters[i] = filter
+	}
+
+	return &Bloomer{
+		filters: filters,
+	}
+
+}
+
+func (b *Bloomer) Add(token []byte) bloom.Bloom {
+	for _, filter := range b.filters {
+		filter.Add(token)
+		token = mash(token)
+	}
+	return b
+}
+
+func (b *Bloomer) Check(token []byte) bool {
+	for _, filter := range b.filters {
+		if !filter.Check(token) {
+			return false
+		}
+		token = mash(token)
+	}
+	return true
+}
+
+// modifies the underlying structure
+func mash(token []byte) []byte {
+	for i, c := range token {
+		c ^= 0xA * (c<<2 ^ c)
+		token[i] = c
+	}
+	return token
 }
