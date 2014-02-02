@@ -9,6 +9,7 @@ import (
 
 	// "crypto/sha1"
 	// "github.com/spaolacci/murmur3"
+	// "github.com/zhenjl/cityhash"
 
 	"log"
 	"os"
@@ -185,6 +186,7 @@ func NewScalableBloom(size uint) bloom.Bloom {
 
 	for i, _ := range filters {
 		filter := scalable.New(size)
+		// filter.SetHasher(adler32.New())
 		filter.Reset()
 		filters[i] = filter
 	}
@@ -196,6 +198,7 @@ func NewScalableBloom(size uint) bloom.Bloom {
 }
 
 func (b *Bloomer) Add(token []byte) bloom.Bloom {
+	token = append(make([]byte, len(token)), token...)
 	for _, filter := range b.filters {
 		filter.Add(token)
 		token = mash(token)
@@ -204,6 +207,7 @@ func (b *Bloomer) Add(token []byte) bloom.Bloom {
 }
 
 func (b *Bloomer) Check(token []byte) bool {
+	token = append(make([]byte, len(token)), token...)
 	for _, filter := range b.filters {
 		if !filter.Check(token) {
 			return false
@@ -216,7 +220,7 @@ func (b *Bloomer) Check(token []byte) bool {
 // modifies the underlying structure
 func mash(token []byte) []byte {
 	for i, c := range token {
-		c ^= 0xA * (c<<2 ^ c)
+		c ^= (0xA * c) << 1
 		token[i] = c
 	}
 	return token
