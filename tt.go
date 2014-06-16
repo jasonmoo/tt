@@ -48,7 +48,7 @@ func main() {
 	flag.Parse()
 
 	if !*intersection && !*diff && !*union {
-		fmt.Println("Usage: tt -[i,d,u] [-blooms N [-mash]] file1 file2[ file3..]")
+		fmt.Println("Usage: tt -[i,d,u] [-blooms N] file1 file2[ file3..]")
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
