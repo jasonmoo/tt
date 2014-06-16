@@ -9,7 +9,7 @@ tt uses maps and optionally scalable bloom filters to quickly test the existence
 
 	./tt
 
-	Usage: tt -[i,d,u] [-blooms N [-mash]] file1 file2[ file3..]
+	Usage: tt -[i,d,u] [-blooms N] file1 file2[ file3..]
 	  -blooms=0: number of bloom filters to use (lossy/false positives)
 	  -u=false: calculate the union
 	  -d=false: calculate the difference
