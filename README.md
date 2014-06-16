@@ -3,20 +3,17 @@
 
 calculate the difference, intersection, or union on large newline delimited files
 
-tt uses scalable bloom filters to quickly test the existence of a member in a set.
-
-[Mac](https://github.com/jasonmoo/tt/raw/master/builds/tt-darwin-amd64.gz)
-[Linux](https://github.com/jasonmoo/tt/raw/master/builds/tt-linux-amd64.gz)
-[Windows](https://github.com/jasonmoo/tt/raw/master/builds/tt-windows-amd64.gz)
+tt uses maps and optionally scalable bloom filters to quickly test the existence of a member in a set.  bloom filters provide a way to process files larger than the available memory on a machine with a performance penalty.  so we default to maps unless `-blooms` is greater than 0.
 
 ##Usage:
 
 	./tt
 
-	Usage: tt -[i,d,u] file1 file2[ file3..]
+	Usage: tt -[i,d,u] [-blooms N [-mash]] file1 file2[ file3..]
+	  -blooms=0: number of bloom filters to use (lossy/false positives)
+	  -u=false: calculate the union
 	  -d=false: calculate the difference
 	  -i=false: calculate the intersection
-	  -u=false: calculate the union
 
 ## Example
 
@@ -33,24 +30,23 @@ tt uses scalable bloom filters to quickly test the existence of a member in a se
 
 	./tt -u /usr/share/dict/{web2*,words} > /dev/null
 	** Token Report **
-	Tokens output:  308732
-	Total time:  9.612525239s
+	Tokens output:  312091
+	Total time:  292.83033ms
 
 	./tt -d /usr/share/dict/{web2*,words} > /dev/null
 	** Token Report **
-	Tokens output:  618234
-	Total time:  18.742208443s
+	Tokens output:  312091
+	Total time:  691.094689ms
 
 	./tt -i /usr/share/dict/{web2*,words} > /dev/null
 	** Token Report **
-	Tokens output:  4869
-	Total time:  5.55820695s
+	Tokens output:  0
+	Total time:  541.864576ms
 
 	./tt -i /usr/share/dict/* > /dev/null
 	** Token Report **
 	Tokens output:  0
 	Total time:  386.177523ms
-
 
 
 [MIT License](https://github.vimeows.com/jason/tt/raw/master/LICENSE)
