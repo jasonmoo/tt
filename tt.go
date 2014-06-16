@@ -13,7 +13,6 @@ import (
 
 	"log"
 	"os"
-	"runtime"
 	"time"
 )
 
@@ -22,13 +21,13 @@ var (
 	diff         = flag.Bool("d", false, "calculate the difference")
 	union        = flag.Bool("u", false, "calculate the union")
 
-	hint = flag.Uint("hint", 4096, "min number of tokens per file")
+	blooms = flag.Uint("blooms", 1, "number of bloom filters to use")
 
 	// buffered io
 	stdout = bufio.NewWriterSize(os.Stdout, 4096)
 
 	// unique filter
-	unique_set = NewScalableBloom(*hint)
+	unique_set bloom.Bloom
 
 	// total tokens in output
 	total uint64
@@ -45,11 +44,11 @@ func main() {
 		fmt.Fprintln(os.Stderr, "Total time: ", time.Since(start))
 	}()
 
-	runtime.GOMAXPROCS(runtime.NumCPU())
-
 	flag.Parse()
 
 	file_paths := flag.Args()
+
+	unique_set = NewScalableBloom(*blooms)
 
 	// may omit entries due to false positives
 	// todo(jason): try crypto hash or use dual filters
@@ -88,7 +87,7 @@ func main() {
 	// initial scan to fill the bloom filters
 	for i, file_path := range file_paths {
 
-		set := NewScalableBloom(*hint)
+		set := NewScalableBloom(*blooms)
 
 		file, err := os.Open(file_path)
 		if err != nil {
@@ -182,10 +181,10 @@ type (
 
 func NewScalableBloom(size uint) bloom.Bloom {
 
-	filters := make([]bloom.Bloom, 2)
+	filters := make([]bloom.Bloom, size)
 
 	for i, _ := range filters {
-		filter := scalable.New(size)
+		filter := scalable.New(4096)
 		// filter.SetHasher(adler32.New())
 		filter.Reset()
 		filters[i] = filter
@@ -201,7 +200,7 @@ func (b *Bloomer) Add(token []byte) bloom.Bloom {
 	token = append(make([]byte, len(token)), token...)
 	for _, filter := range b.filters {
 		filter.Add(token)
-		token = mash(token)
+		mash(token)
 	}
 	return b
 }
@@ -212,16 +211,15 @@ func (b *Bloomer) Check(token []byte) bool {
 		if !filter.Check(token) {
 			return false
 		}
-		token = mash(token)
+		mash(token)
 	}
 	return true
 }
 
 // modifies the underlying structure
-func mash(token []byte) []byte {
+func mash(token []byte) {
 	for i, c := range token {
-		c ^= (0xA * c) << 1
+		c ^= (20 * c)
 		token[i] = c
 	}
-	return token
 }
