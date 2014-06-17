@@ -25,53 +25,10 @@ type (
 
 		regex_match   *regexp.Regexp
 		regex_capture *regexp.Regexp
+
+		current []byte
 	}
 )
-
-func NewEmitter(file_path, regex_match, regex_capture string) (*Emitter, error) {
-
-	var (
-		e   = new(Emitter)
-		err error
-	)
-
-	e.file, err = os.Open(file_path)
-	if err != nil {
-		return nil, err
-	}
-
-	e.scanner = bufio.NewScanner(e.file)
-
-	if regex_match != "" {
-		e.regex_match = regexp.MustCompile(regex_match)
-	}
-	if regex_capture != "" {
-		e.regex_capture = regexp.MustCompile(regex_capture)
-	}
-
-	return e, nil
-
-}
-func (e *Emitter) Scan() bool {
-	return e.scanner.Scan()
-}
-func (e *Emitter) Bytes() []byte {
-	data := e.scanner.Bytes()
-	if e.regex_match != nil && !e.regex_match.Match(data) {
-		return []byte{}
-	}
-	if e.regex_capture != nil {
-		matches := e.regex_capture.FindSubmatch(data)
-		return bytes.Join(matches, []byte{','})
-	}
-	return data
-}
-func (e *Emitter) Text() string {
-	return string(e.Bytes())
-}
-func (e *Emitter) Close() error {
-	return e.file.Close()
-}
 
 var (
 	intersection = flag.Bool("i", false, "calculate the intersection")
@@ -83,8 +40,8 @@ var (
 
 	// options
 	trim          = flag.Bool("trim", false, "trim each line")
-	regex_match   = flag.String("regex", "", "only process matching lines")
-	regex_capture = flag.String("regex_capture", "", "only process captured data")
+	regex_match   = flag.String("match", "", "only process matching lines")
+	regex_capture = flag.String("capture", "", "only process captured data")
 
 	// buffered io
 	stdout = bufio.NewWriterSize(os.Stdout, 4096)
@@ -107,7 +64,7 @@ func main() {
 	flag.Parse()
 
 	if !*intersection && !*diff && !*union {
-		fmt.Println("Usage: tt -[i,d,u] [-blooms N] file1 file2[ file3..]")
+		fmt.Println("Usage: tt -[i,d,u] [-match \"pattern\"] -[capture \"pattern\"] [-blooms N] file1 file2[ file3..]")
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
@@ -438,4 +395,59 @@ func mash(token []byte) {
 	for i, c := range token {
 		token[i] ^= (20 * c)
 	}
+}
+
+func NewEmitter(file_path, regex_match, regex_capture string) (*Emitter, error) {
+
+	var (
+		e   = new(Emitter)
+		err error
+	)
+
+	e.file, err = os.Open(file_path)
+	if err != nil {
+		return nil, err
+	}
+
+	e.scanner = bufio.NewScanner(e.file)
+
+	if regex_match != "" {
+		e.regex_match = regexp.MustCompile(regex_match)
+	}
+	if regex_capture != "" {
+		e.regex_capture = regexp.MustCompile(regex_capture)
+	}
+
+	return e, nil
+
+}
+func (e *Emitter) Scan() bool {
+	for e.scanner.Scan() {
+		e.current = e.scanner.Bytes()
+		if *trim {
+			e.current = bytes.TrimSpace(e.current)
+		}
+		if e.regex_match != nil && !e.regex_match.Match(e.current) {
+			continue
+		}
+		if e.regex_capture != nil {
+			matches := e.regex_capture.FindSubmatch(e.current)
+			if len(matches) == 2 {
+				e.current = matches[1]
+			} else {
+				continue
+			}
+		}
+		return true
+	}
+	return false
+}
+func (e *Emitter) Bytes() []byte {
+	return e.current
+}
+func (e *Emitter) Text() string {
+	return string(e.Bytes())
+}
+func (e *Emitter) Close() error {
+	return e.file.Close()
 }
