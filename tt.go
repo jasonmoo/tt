@@ -19,6 +19,7 @@ type (
 		bloom.Bloom
 		filters []bloom.Bloom
 	}
+
 	Emitter struct {
 		file    *os.File
 		scanner *bufio.Scanner
@@ -27,6 +28,11 @@ type (
 		regex_capture *regexp.Regexp
 
 		current []byte
+	}
+
+	TokenStore interface {
+		Add([]byte)
+		Check([]byte) bool
 	}
 )
 
@@ -43,8 +49,7 @@ var (
 	regex_match   = flag.String("match", "", "only process matching lines")
 	regex_capture = flag.String("capture", "", "only process captured data")
 
-	// buffered io
-	stdout = bufio.NewWriterSize(os.Stdout, 4096)
+	buffer_size = flag.Int("buffer_size", 4096, "buffered io chunk size")
 
 	// total tokens in output
 	total uint64
@@ -54,14 +59,17 @@ func main() {
 
 	start := time.Now()
 
+	flag.Parse()
+
+	// buffered io
+	stdout := bufio.NewWriterSize(os.Stdout, *buffer_size)
+
 	defer func() {
 		stdout.Flush()
 		fmt.Fprintln(os.Stderr, "** Token Report **")
 		fmt.Fprintln(os.Stderr, "Tokens output: ", total)
 		fmt.Fprintln(os.Stderr, "Total time: ", time.Since(start))
 	}()
-
-	flag.Parse()
 
 	if !*intersection && !*diff && !*union {
 		fmt.Println("Usage: tt -[i,d,u] [-match \"pattern\"] -[capture \"pattern\"] [-blooms N] file1 file2[ file3..]")
@@ -409,7 +417,7 @@ func NewEmitter(file_path, regex_match, regex_capture string) (*Emitter, error) 
 		return nil, err
 	}
 
-	e.scanner = bufio.NewScanner(e.file)
+	e.scanner = bufio.NewScanner(bufio.NewReaderSize(e.file, *buffer_size))
 
 	if regex_match != "" {
 		e.regex_match = regexp.MustCompile(regex_match)
@@ -446,7 +454,7 @@ func (e *Emitter) Bytes() []byte {
 	return e.current
 }
 func (e *Emitter) Text() string {
-	return string(e.Bytes())
+	return string(e.current)
 }
 func (e *Emitter) Close() error {
 	return e.file.Close()
