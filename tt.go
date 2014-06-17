@@ -2,10 +2,12 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"flag"
 	"fmt"
 	"log"
 	"os"
+	"regexp"
 	"time"
 
 	"github.com/reducedb/bloom"
@@ -17,7 +19,59 @@ type (
 		bloom.Bloom
 		filters []bloom.Bloom
 	}
+	Emitter struct {
+		file    *os.File
+		scanner *bufio.Scanner
+
+		regex_match   *regexp.Regexp
+		regex_capture *regexp.Regexp
+	}
 )
+
+func NewEmitter(file_path, regex_match, regex_capture string) (*Emitter, error) {
+
+	var (
+		e   = new(Emitter)
+		err error
+	)
+
+	e.file, err = os.Open(file_path)
+	if err != nil {
+		return nil, err
+	}
+
+	e.scanner = bufio.NewScanner(e.file)
+
+	if regex_match != "" {
+		e.regex_match = regexp.MustCompile(regex_match)
+	}
+	if regex_capture != "" {
+		e.regex_capture = regexp.MustCompile(regex_capture)
+	}
+
+	return e, nil
+
+}
+func (e *Emitter) Scan() bool {
+	return e.scanner.Scan()
+}
+func (e *Emitter) Bytes() []byte {
+	data := e.scanner.Bytes()
+	if e.regex_match != nil && !e.regex_match.Match(data) {
+		return []byte{}
+	}
+	if e.regex_capture != nil {
+		matches := e.regex_capture.FindSubmatch(data)
+		return bytes.Join(matches, []byte{','})
+	}
+	return data
+}
+func (e *Emitter) Text() string {
+	return string(e.Bytes())
+}
+func (e *Emitter) Close() error {
+	return e.file.Close()
+}
 
 var (
 	intersection = flag.Bool("i", false, "calculate the intersection")
@@ -26,6 +80,11 @@ var (
 
 	// activate lossy processing
 	blooms = flag.Uint("blooms", 0, "number of bloom filters to use (lossy)")
+
+	// options
+	trim          = flag.Bool("trim", false, "trim each line")
+	regex_match   = flag.String("regex", "", "only process matching lines")
+	regex_capture = flag.String("regex_capture", "", "only process captured data")
 
 	// buffered io
 	stdout = bufio.NewWriterSize(os.Stdout, 4096)
@@ -66,15 +125,13 @@ func main() {
 
 			for _, file_path := range file_paths {
 
-				file, err := os.Open(file_path)
+				e, err := NewEmitter(file_path, *regex_match, *regex_capture)
 				if err != nil {
 					log.Fatal(err)
 				}
 
-				scanner := bufio.NewScanner(file)
-
-				for scanner.Scan() {
-					token := scanner.Bytes()
+				for e.Scan() {
+					token := e.Bytes()
 					if !unique_set.Check(token) {
 						stdout.Write(token)
 						stdout.WriteByte('\n')
@@ -83,7 +140,7 @@ func main() {
 					}
 				}
 
-				file.Close()
+				e.Close()
 
 			}
 
@@ -99,18 +156,16 @@ func main() {
 
 			set := NewScalableBloom(*blooms)
 
-			file, err := os.Open(file_path)
+			e, err := NewEmitter(file_path, *regex_match, *regex_capture)
 			if err != nil {
 				log.Fatal(err)
 			}
 
-			scanner := bufio.NewScanner(file)
-
-			for scanner.Scan() {
-				set.Add(scanner.Bytes())
+			for e.Scan() {
+				set.Add(e.Bytes())
 			}
 
-			file.Close()
+			e.Close()
 
 			sets[i] = set
 
@@ -126,17 +181,15 @@ func main() {
 
 			for _, file_path := range file_paths {
 
-				file, err := os.Open(file_path)
+				e, err := NewEmitter(file_path, *regex_match, *regex_capture)
 				if err != nil {
 					log.Fatal(err)
 				}
 
-				scanner := bufio.NewScanner(file)
-
 			NEXT_TOKEN:
-				for scanner.Scan() {
+				for e.Scan() {
 
-					token := scanner.Bytes()
+					token := e.Bytes()
 
 					if echoed_set.Check(token) {
 						goto NEXT_TOKEN
@@ -155,7 +208,7 @@ func main() {
 
 				}
 
-				file.Close()
+				e.Close()
 
 			}
 
@@ -166,16 +219,14 @@ func main() {
 
 			for _, file_path := range file_paths {
 
-				file, err := os.Open(file_path)
+				e, err := NewEmitter(file_path, *regex_match, *regex_capture)
 				if err != nil {
 					log.Fatal(err)
 				}
 
-				scanner := bufio.NewScanner(file)
+				for e.Scan() {
 
-				for scanner.Scan() {
-
-					token := scanner.Bytes()
+					token := e.Bytes()
 
 					if echoed_set.Check(token) {
 						continue
@@ -192,7 +243,7 @@ func main() {
 
 				}
 
-				file.Close()
+				e.Close()
 
 			}
 		}
@@ -206,15 +257,13 @@ func main() {
 
 			for _, file_path := range file_paths {
 
-				file, err := os.Open(file_path)
+				e, err := NewEmitter(file_path, *regex_match, *regex_capture)
 				if err != nil {
 					log.Fatal(err)
 				}
 
-				scanner := bufio.NewScanner(file)
-
-				for scanner.Scan() {
-					token := scanner.Text()
+				for e.Scan() {
+					token := e.Text()
 					if _, exists := unique_set[token]; !exists {
 						stdout.WriteString(token)
 						stdout.WriteByte('\n')
@@ -223,7 +272,7 @@ func main() {
 					}
 				}
 
-				file.Close()
+				e.Close()
 
 			}
 
@@ -239,18 +288,16 @@ func main() {
 
 			set := make(map[string]bool)
 
-			file, err := os.Open(file_path)
+			e, err := NewEmitter(file_path, *regex_match, *regex_capture)
 			if err != nil {
 				log.Fatal(err)
 			}
 
-			scanner := bufio.NewScanner(file)
-
-			for scanner.Scan() {
-				set[scanner.Text()] = true
+			for e.Scan() {
+				set[e.Text()] = true
 			}
 
-			file.Close()
+			e.Close()
 
 			sets[i] = set
 
@@ -266,17 +313,15 @@ func main() {
 
 			for _, file_path := range file_paths {
 
-				file, err := os.Open(file_path)
+				e, err := NewEmitter(file_path, *regex_match, *regex_capture)
 				if err != nil {
 					log.Fatal(err)
 				}
 
-				scanner := bufio.NewScanner(file)
-
 			NEXT_TOKEN2:
-				for scanner.Scan() {
+				for e.Scan() {
 
-					token := scanner.Text()
+					token := e.Text()
 
 					if _, echoed := echoed_set[token]; echoed {
 						goto NEXT_TOKEN2
@@ -295,7 +340,7 @@ func main() {
 
 				}
 
-				file.Close()
+				e.Close()
 
 			}
 
@@ -306,16 +351,14 @@ func main() {
 
 			for _, file_path := range file_paths {
 
-				file, err := os.Open(file_path)
+				e, err := NewEmitter(file_path, *regex_match, *regex_capture)
 				if err != nil {
 					log.Fatal(err)
 				}
 
-				scanner := bufio.NewScanner(file)
+				for e.Scan() {
 
-				for scanner.Scan() {
-
-					token := scanner.Text()
+					token := e.Text()
 
 					if _, echoed := echoed_set[token]; echoed {
 						continue
@@ -333,7 +376,7 @@ func main() {
 
 				}
 
-				file.Close()
+				e.Close()
 
 			}
 		}
