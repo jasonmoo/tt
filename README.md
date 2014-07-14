@@ -3,17 +3,22 @@
 
 calculate the difference, intersection, or union on large newline delimited files
 
-tt uses maps and optionally scalable bloom filters to quickly test the existence of a member in a set.  bloom filters provide a way to process files larger than the available memory on a machine with a performance penalty.  so we default to maps unless `-blooms` is greater than 0.
+tt uses maps and optionally scalable bloom filters to quickly test the existence of a member in a set.  bloom filters provide a way to process files larger than the memory consumed by the map implementation.
 
 ##Usage:
 
 	./tt
-
-	Usage: tt -[i,d,u] [-blooms N] file1 file2[ file3..]
-	  -blooms=0: number of bloom filters to use (lossy/false positives)
-	  -u=false: calculate the union
-	  -d=false: calculate the difference
-	  -i=false: calculate the intersection
+	Usage: tt -[i,d,u] [-trim] [-match "regex"] [-capture "regex"] [-large [-estimated_lines N]] file1 file2[ file3..]
+		-buffer_size=1048576: buffered io chunk size
+		-capture="": only process captured data
+		-d=false: calculate the difference
+		-devnull=false: do not output tokens, just counts
+		-estimated_lines=0: estimate used to size bloom filters (set this to avoid prescan)
+		-i=false: calculate the intersection
+		-large=false: use bloom filters for large data size (may be lossy)
+		-match="": only process matching lines
+		-trim=false: trim each line
+		-u=false: calculate the union
 
 ## Example
 
@@ -29,24 +34,29 @@ tt uses maps and optionally scalable bloom filters to quickly test the existence
 	# outputs for different actions on /usr/share/dict files
 
 	./tt -u /usr/share/dict/{web2*,words} > /dev/null
-	** Token Report **
-	Tokens output:  312091
-	Total time:  292.83033ms
-
+		tt starting up
+		** Token Report **
+		Lines scanned:  547977
+		Tokens emitted:  312091
+		Time:  250.914739ms
 	./tt -d /usr/share/dict/{web2*,words} > /dev/null
-	** Token Report **
-	Tokens output:  312091
-	Total time:  691.094689ms
-
+		tt starting up
+		** Token Report **
+		Lines scanned:  547977
+		Tokens emitted:  312091
+		Time:  632.523386ms
 	./tt -i /usr/share/dict/{web2*,words} > /dev/null
-	** Token Report **
-	Tokens output:  0
-	Total time:  541.864576ms
-
+		tt starting up
+		** Token Report **
+		Lines scanned:  547977
+		Tokens emitted:  0
+		Time:  501.008685ms
 	./tt -i /usr/share/dict/* > /dev/null
-	** Token Report **
-	Tokens output:  0
-	Total time:  386.177523ms
+		tt starting up
+		** Token Report **
+		Lines scanned:  549474
+		Tokens emitted:  0
+		Time:  395.460469ms
 
 
 [MIT License](https://github.vimeows.com/jason/tt/raw/master/LICENSE)
