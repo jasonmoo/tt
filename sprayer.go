@@ -26,7 +26,7 @@ func NewSprayer(file *os.File, chunk, buffer int) *Sprayer {
 	}
 }
 
-func (s *Sprayer) Run(f func(chunk []byte)) error {
+func (s *Sprayer) Run(f func(chunk []byte)) (err error) {
 
 	chunkChan := make(chan []byte, 256)
 	workers := runtime.NumCPU()
@@ -46,9 +46,10 @@ func (s *Sprayer) Run(f func(chunk []byte)) error {
 	for {
 		buf := make([]byte, s.bufferSize)
 
-		n, err := s.file.Read(buf)
+		var n int
+		n, err = s.file.Read(buf)
 		if err != nil && err != io.EOF {
-			return err
+			break
 		}
 		if n == 0 {
 			break
@@ -58,9 +59,10 @@ func (s *Sprayer) Run(f func(chunk []byte)) error {
 		// read to a newline to prevent
 		// spanning a word across two buffers
 		if buf[len(buf)-1] != '\n' {
-			extra, err := s.file.ReadBytes('\n')
+			var extra []byte
+			extra, err = s.file.ReadBytes('\n')
 			if err != nil && err != io.EOF {
-				return err
+				break
 			}
 			buf = append(buf, extra...)
 		}
@@ -79,7 +81,7 @@ func (s *Sprayer) Run(f func(chunk []byte)) error {
 
 			// read to a newline to prevent
 			// spanning a word across two buffers
-			if chunk[len(chunk)-1] != '\n' && len(buf) > 0 {
+			if chunk[len(chunk)-1] != '\n' {
 				i := bytes.IndexByte(buf, '\n')
 				chunk = append(chunk, buf[:i]...)
 				buf = buf[i:]
@@ -91,6 +93,9 @@ func (s *Sprayer) Run(f func(chunk []byte)) error {
 
 	}
 
-	return nil
+	close(chunkChan)
+	wg.Wait()
+
+	return
 
 }
