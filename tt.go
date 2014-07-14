@@ -6,25 +6,12 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"regexp"
 	"runtime"
 	"time"
 
 	"github.com/jasonmoo/wc"
 	"github.com/reducedb/bloom"
 	"github.com/reducedb/bloom/scalable"
-)
-
-type (
-	Emitter struct {
-		file    *os.File
-		scanner *bufio.Scanner
-
-		match_regex   *regexp.Regexp
-		capture_regex *regexp.Regexp
-
-		current []byte
-	}
 )
 
 var (
@@ -42,6 +29,7 @@ var (
 	capture_regex = flag.String("capture", "", "only process captured data")
 
 	// for fs opts
+	devnull     = flag.Bool("devnull", false, "do not output tokens, just counts")
 	buffer_size = flag.Int("buffer_size", 1<<20, "buffered io chunk size")
 
 	// totals
@@ -60,8 +48,14 @@ func main() {
 
 	flag.Parse()
 
-	// buffered io
-	stdout := bufio.NewWriterSize(os.Stdout, *buffer_size)
+	var stdout WriteFlusher
+
+	if *devnull {
+		stdout = new(DevNullWriter)
+	} else {
+		// buffered io
+		stdout = bufio.NewWriterSize(os.Stdout, *buffer_size)
+	}
 
 	defer func() {
 		stdout.Flush()
@@ -125,6 +119,7 @@ func main() {
 				for e.Scan() {
 					token := e.Bytes()
 					if !unique_set.Check(token) {
+						total_tokens_emitted++
 						stdout.Write(token)
 						stdout.WriteByte('\n')
 						unique_set.Add(token)
@@ -132,6 +127,8 @@ func main() {
 				}
 
 				e.Close()
+
+				total_lines_scanned += e.LinesScanned
 
 			}
 
@@ -192,11 +189,14 @@ func main() {
 						}
 					}
 
+					total_tokens_emitted++
 					stdout.Write(token)
 					stdout.WriteByte('\n')
 					echoed_set.Add(token)
 
 				}
+
+				total_lines_scanned += e.LinesScanned
 
 				e.Close()
 
@@ -224,6 +224,7 @@ func main() {
 
 					for _, set := range sets {
 						if !set.Check(token) {
+							total_tokens_emitted++
 							stdout.Write(token)
 							stdout.WriteByte('\n')
 							echoed_set.Add(token)
@@ -231,6 +232,8 @@ func main() {
 					}
 
 				}
+
+				total_lines_scanned += e.LinesScanned
 
 				e.Close()
 
@@ -254,12 +257,15 @@ func main() {
 				for e.Scan() {
 					token := e.Text()
 					if _, exists := unique_set[token]; !exists {
+						total_tokens_emitted++
 						stdout.WriteString(token)
 						stdout.WriteByte('\n')
 
 						unique_set[token] = true
 					}
 				}
+
+				total_lines_scanned += e.LinesScanned
 
 				e.Close()
 
@@ -322,12 +328,15 @@ func main() {
 						}
 					}
 
+					total_tokens_emitted++
 					stdout.WriteString(token)
 					stdout.WriteByte('\n')
 
 					echoed_set[token] = true
 
 				}
+
+				total_lines_scanned += e.LinesScanned
 
 				e.Close()
 
@@ -355,6 +364,7 @@ func main() {
 
 					for _, set := range sets {
 						if _, in_this_set := set[token]; !in_this_set {
+							total_tokens_emitted++
 							stdout.WriteString(token)
 							stdout.WriteByte('\n')
 
@@ -364,6 +374,8 @@ func main() {
 					}
 
 				}
+
+				total_lines_scanned += e.LinesScanned
 
 				e.Close()
 
@@ -375,6 +387,5 @@ func main() {
 }
 
 func NewScalableBloom(size uint64) bloom.Bloom {
-	// double size for better collision resistence
-	return scalable.New(uint(size * 2))
+	return scalable.New(uint(size))
 }

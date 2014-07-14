@@ -7,6 +7,20 @@ import (
 	"regexp"
 )
 
+type (
+	Emitter struct {
+		file    *os.File
+		scanner *bufio.Scanner
+
+		match_regex   *regexp.Regexp
+		capture_regex *regexp.Regexp
+
+		LinesScanned uint64
+
+		current []byte
+	}
+)
+
 func NewEmitter(file_path, match_regex, capture_regex string, buffer_size int) (*Emitter, error) {
 
 	var (
@@ -33,7 +47,7 @@ func NewEmitter(file_path, match_regex, capture_regex string, buffer_size int) (
 }
 func (e *Emitter) Scan() bool {
 	for e.scanner.Scan() {
-		total_lines_scanned++
+		e.LinesScanned++
 		e.current = e.scanner.Bytes()
 		if *trim {
 			e.current = bytes.TrimSpace(e.current)
@@ -49,7 +63,6 @@ func (e *Emitter) Scan() bool {
 				continue
 			}
 		}
-		total_tokens_emitted++
 		return true
 	}
 	return false
