@@ -19,6 +19,8 @@ var (
 	diff         = flag.Bool("d", false, "calculate the difference")
 	union        = flag.Bool("u", false, "calculate the union")
 
+	count = flag.Bool("c", false, "output counts of each token on non-large unions")
+
 	// bloom processing
 	large           = flag.Bool("large", false, "use bloom filters for large data size (may be lossy)")
 	estimated_lines = flag.Uint64("estimated_lines", 0, "estimate used to size bloom filters (set this to avoid prescan)")
@@ -44,9 +46,15 @@ func init() {
 
 func main() {
 
-	start := time.Now()
-
 	flag.Parse()
+
+	if !*intersection && !*diff && !*union {
+		fmt.Println(`Usage: tt -[i,d,u] [-c] [-trim] [-match "regex"] [-capture "regex"] [-large [-estimated_lines N]] file1 file2[ file3..]`)
+		flag.PrintDefaults()
+		os.Exit(1)
+	}
+
+	start := time.Now()
 
 	var stdout WriteFlusher
 
@@ -64,12 +72,6 @@ func main() {
 		fmt.Fprintln(os.Stderr, "Tokens emitted: ", total_tokens_emitted)
 		fmt.Fprintln(os.Stderr, "Time: ", time.Since(start))
 	}()
-
-	if !*intersection && !*diff && !*union {
-		fmt.Println(`Usage: tt -[i,d,u] [-trim] [-match "regex"] [-capture "regex"] [-large [-estimated_lines N]] file1 file2[ file3..]`)
-		flag.PrintDefaults()
-		os.Exit(1)
-	}
 
 	file_paths := flag.Args()
 
@@ -245,7 +247,7 @@ func main() {
 
 		if *union {
 
-			unique_set := make(map[string]bool)
+			unique_set := make(map[string]int)
 
 			for _, file_path := range file_paths {
 
@@ -255,20 +257,26 @@ func main() {
 				}
 
 				for e.Scan() {
-					token := e.Text()
-					if _, exists := unique_set[token]; !exists {
-						total_tokens_emitted++
-						stdout.WriteString(token)
-						stdout.WriteByte('\n')
-
-						unique_set[token] = true
-					}
+					unique_set[e.Text()]++
 				}
 
 				total_lines_scanned += e.LinesScanned
 
 				e.Close()
 
+			}
+
+			if *count {
+				for token, ct := range unique_set {
+					total_tokens_emitted++
+					fmt.Fprintf(stdout, "%d: %s\n", ct, token)
+				}
+			} else {
+				for token, _ := range unique_set {
+					total_tokens_emitted++
+					stdout.WriteString(token)
+					stdout.WriteByte('\n')
+				}
 			}
 
 			return
