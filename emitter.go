@@ -52,8 +52,12 @@ func (e *Emitter) Scan() bool {
 		if *trim {
 			e.current = bytes.TrimSpace(e.current)
 		}
-		if e.match_regex != nil && !e.match_regex.Match(e.current) {
-			continue
+		if e.match_regex != nil {
+			if e.match_regex.Match(e.current) {
+				total_lines_matched++
+			} else {
+				continue
+			}
 		}
 		if e.capture_regex != nil {
 			matches := e.capture_regex.FindSubmatch(e.current)

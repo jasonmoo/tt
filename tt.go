@@ -38,6 +38,7 @@ var (
 	total_tokens_emitted  uint64
 	total_bytes_processed uint64
 	total_lines_scanned   uint64
+	total_lines_matched   uint64
 )
 
 func init() {
@@ -69,6 +70,9 @@ func main() {
 		stdout.Flush()
 		fmt.Fprintln(os.Stderr, "** Token Report **")
 		fmt.Fprintln(os.Stderr, "Lines scanned: ", total_lines_scanned)
+		if *match_regex != "" {
+			fmt.Fprintln(os.Stderr, "Lines matched: ", total_lines_matched)
+		}
 		fmt.Fprintln(os.Stderr, "Tokens emitted: ", total_tokens_emitted)
 		fmt.Fprintln(os.Stderr, "Time: ", time.Since(start))
 	}()
