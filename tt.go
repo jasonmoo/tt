@@ -9,9 +9,9 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/dataence/bloom"
+	"github.com/dataence/bloom/scalable"
 	"github.com/jasonmoo/wc"
-	"github.com/reducedb/bloom"
-	"github.com/reducedb/bloom/scalable"
 )
 
 var (
