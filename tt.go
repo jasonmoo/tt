@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"runtime"
+	"strconv"
 	"time"
 
 	"github.com/dataence/bloom"
@@ -270,24 +271,21 @@ func main() {
 
 			}
 
-			if *count {
-				for token, ct := range unique_set {
-					total_tokens_emitted++
-					fmt.Fprintf(stdout, "%d: %s\n", ct, token)
+			for token, ct := range unique_set {
+				total_tokens_emitted++
+				if *count {
+					stdout.WriteString(strconv.Itoa(ct))
+					stdout.WriteByte('\t')
 				}
-			} else {
-				for token, _ := range unique_set {
-					total_tokens_emitted++
-					stdout.WriteString(token)
-					stdout.WriteByte('\n')
-				}
+				stdout.WriteString(token)
+				stdout.WriteByte('\n')
 			}
 
 			return
 		}
 
 		// multi file handling below
-		sets := make([]map[string]bool, len(file_paths))
+		sets := make([]map[string]int, len(file_paths))
 
 		// may require throttling due to disk thrashing
 		// initial scan to fill the bloom filters
@@ -325,7 +323,7 @@ func main() {
 				}
 			}
 
-			set[shortest_i], set = set[len(a)-1], set[:len(a)-1]
+			sets[shortest_i], sets = sets[len(sets)-1], sets[:len(sets)-1]
 
 			for token, ct := range shortest {
 
@@ -336,11 +334,11 @@ func main() {
 				}
 
 				if *count {
-					fmt.Fprintf(stdout, "%d: %s\n", ct, token)
-				} else {
-					stdout.WriteString(token)
-					stdout.WriteByte('\n')
+					stdout.WriteString(strconv.Itoa(ct))
+					stdout.WriteByte('\t')
 				}
+				stdout.WriteString(token)
+				stdout.WriteByte('\n')
 
 				total_tokens_emitted++
 
@@ -350,58 +348,36 @@ func main() {
 		// unique set of tokens not in the intersection
 		case *diff:
 
+			type counts struct {
+				sets, ct int
+			}
+
+			tokens := make(map[string]*counts)
+
 			for _, set := range sets {
-				for _, subset := range sets {
-					if _, in_this_set := subset[token]; !in_this_set {
-						if *count {
-							fmt.Fprintf(stdout, "%d: %s\n", ct, token)
-						} else {
-							stdout.WriteString(token)
-							stdout.WriteByte('\n')
-						}
-				total_tokens_emitted++
+				for token, ct := range set {
+					cts, exists := tokens[token]
+					if !exists {
+						cts = &counts{}
 					}
-
+					cts.ct += ct
+					cts.sets++
+					tokens[token] = cts
 				}
-
 			}
 
-			// NEXT_TOKEN2:
+			for token, cts := range tokens {
+				if cts.sets != len(sets) {
+					if *count {
+						stdout.WriteString(strconv.Itoa(cts.ct))
+						stdout.WriteByte('\t')
+					}
+					stdout.WriteString(token)
+					stdout.WriteByte('\n')
+					total_tokens_emitted++
+				}
 			}
 
-			for _, file_path := range file_paths {
-
-				e, err := NewEmitter(file_path, *match_regex, *capture_regex, *buffer_size)
-				if err != nil {
-					log.Fatal(err)
-				}
-
-				for e.Scan() {
-
-					token := e.Text()
-
-					if _, echoed := echoed_set[token]; echoed {
-						continue
-					}
-
-					for _, set := range sets {
-						if _, in_this_set := set[token]; !in_this_set {
-							total_tokens_emitted++
-							stdout.WriteString(token)
-							stdout.WriteByte('\n')
-
-							echoed_set[token] = true
-							break
-						}
-					}
-
-				}
-
-				total_lines_scanned += e.LinesScanned
-
-				e.Close()
-
-			}
 		}
 
 	}
