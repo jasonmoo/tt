@@ -293,7 +293,7 @@ func main() {
 		// initial scan to fill the bloom filters
 		for i, file_path := range file_paths {
 
-			set := make(map[string]bool)
+			set := make(map[string]int)
 
 			e, err := NewEmitter(file_path, *match_regex, *capture_regex, *buffer_size)
 			if err != nil {
@@ -301,8 +301,10 @@ func main() {
 			}
 
 			for e.Scan() {
-				set[e.Text()] = true
+				set[e.Text()]++
 			}
+
+			total_lines_scanned += e.LinesScanned
 
 			e.Close()
 
@@ -316,48 +318,56 @@ func main() {
 		// unique set of tokens that exist in all files
 		case *intersection:
 
-			echoed_set := make(map[string]bool)
-
-			for _, file_path := range file_paths {
-
-				e, err := NewEmitter(file_path, *match_regex, *capture_regex, *buffer_size)
-				if err != nil {
-					log.Fatal(err)
+			shortest, shortest_i := sets[0], 0
+			for i, set := range sets {
+				if len(set) < len(shortest) {
+					shortest, shortest_i = set, i
 				}
+			}
 
-			NEXT_TOKEN2:
-				for e.Scan() {
+			set[shortest_i], set = set[len(a)-1], set[:len(a)-1]
 
-					token := e.Text()
+			for token, ct := range shortest {
 
-					if _, echoed := echoed_set[token]; echoed {
+				for _, set := range sets {
+					if _, in_this_set := set[token]; !in_this_set {
 						goto NEXT_TOKEN2
 					}
-
-					for _, set := range sets {
-						if _, in_this_set := set[token]; !in_this_set {
-							goto NEXT_TOKEN2
-						}
-					}
-
-					total_tokens_emitted++
-					stdout.WriteString(token)
-					stdout.WriteByte('\n')
-
-					echoed_set[token] = true
-
 				}
 
-				total_lines_scanned += e.LinesScanned
+				if *count {
+					fmt.Fprintf(stdout, "%d: %s\n", ct, token)
+				} else {
+					stdout.WriteString(token)
+					stdout.WriteByte('\n')
+				}
 
-				e.Close()
+				total_tokens_emitted++
 
+			NEXT_TOKEN2:
 			}
 
 		// unique set of tokens not in the intersection
 		case *diff:
 
-			echoed_set := make(map[string]bool)
+			for _, set := range sets {
+				for _, subset := range sets {
+					if _, in_this_set := subset[token]; !in_this_set {
+						if *count {
+							fmt.Fprintf(stdout, "%d: %s\n", ct, token)
+						} else {
+							stdout.WriteString(token)
+							stdout.WriteByte('\n')
+						}
+				total_tokens_emitted++
+					}
+
+				}
+
+			}
+
+			// NEXT_TOKEN2:
+			}
 
 			for _, file_path := range file_paths {
 
