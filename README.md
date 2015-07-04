@@ -1,13 +1,15 @@
 ##tt
 *a token tester*
 
-calculate the difference, intersection, or union on large newline delimited files
+cli tool to calculate the difference, intersection, or union on large newline delimited files
 
 tt uses maps and optionally scalable bloom filters to quickly test the existence of a member in a set.  bloom filters provide a way to process files larger than the memory consumed by the map implementation.
 
 ##Usage:
 
-	./tt
+	jason@mba ~: go get github.com/jasonmoo/tt
+
+	jason@mba ~: tt
 	Usage: tt -[i,d,u] [-trim] [-match "regex"] [-capture "regex"] [-large [-estimated_lines N]] file1 file2[ file3..]
 		-buffer_size=1048576: buffered io chunk size
 		-capture="": only process captured data
@@ -22,7 +24,7 @@ tt uses maps and optionally scalable bloom filters to quickly test the existence
 
 ## Example
 
-	wc -l /usr/share/dict/*
+	jason@mba ~: wc -l /usr/share/dict/*
 	      39 /usr/share/dict/README
 	     150 /usr/share/dict/connectives
 	    1308 /usr/share/dict/propernames
@@ -33,25 +35,25 @@ tt uses maps and optionally scalable bloom filters to quickly test the existence
 
 	# outputs for different actions on /usr/share/dict files
 
-	./tt -u /usr/share/dict/{web2*,words} > /dev/null
+	jason@mba ~: tt -u -devnull /usr/share/dict/{web2*,words}
 		tt starting up
 		** Token Report **
 		Lines scanned:  547977
 		Tokens emitted:  312091
 		Time:  250.914739ms
-	./tt -d /usr/share/dict/{web2*,words} > /dev/null
+	jason@mba ~: tt -d -devnull /usr/share/dict/{web2*,words}
 		tt starting up
 		** Token Report **
 		Lines scanned:  547977
 		Tokens emitted:  312091
 		Time:  632.523386ms
-	./tt -i /usr/share/dict/{web2*,words} > /dev/null
+	jason@mba ~: tt -i -devnull /usr/share/dict/{web2*,words}
 		tt starting up
 		** Token Report **
 		Lines scanned:  547977
 		Tokens emitted:  0
 		Time:  501.008685ms
-	./tt -i /usr/share/dict/* > /dev/null
+	jason@mba ~: tt -i -devnull /usr/share/dict/*
 		tt starting up
 		** Token Report **
 		Lines scanned:  549474
@@ -59,4 +61,4 @@ tt uses maps and optionally scalable bloom filters to quickly test the existence
 		Time:  395.460469ms
 
 
-[MIT License](https://github.vimeows.com/jason/tt/raw/master/LICENSE)
+[LICENSE](https://github.vimeows.com/jason/tt/raw/master/LICENSE)
