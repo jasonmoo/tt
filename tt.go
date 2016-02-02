@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"runtime"
 	"time"
 
 	"github.com/jasonmoo/wc"
@@ -40,10 +39,6 @@ var (
 	total_lines_scanned   uint64
 	total_lines_matched   uint64
 )
-
-func init() {
-	runtime.GOMAXPROCS(runtime.NumCPU())
-}
 
 func main() {
 
